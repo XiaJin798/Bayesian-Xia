@@ -1,4 +1,4 @@
-# Bayesian-Xia
+# Bayesian-Xia_Exp
 Codes for generating photosynthetic coefficients from photosynthetic responses to radiation (AI), and CO2 (ACI) by using C4 biochemical photosynthetic model and Bayesian fitting
 Folder list:
 C4_biochemical_photosynthesis_model
