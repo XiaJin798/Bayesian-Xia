@@ -1,0 +1,15 @@
+import matplotlib.pyplot as plt
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter, AutoMinorLocator)
+import pandas as pd
+import numpy as np
+import pymc as pm
+import arviz as az
+import theano
+import theano.tensor as tt
+from numpy.ma import masked_values
+import pickle
+import sys
+import time
+
+from C4_biochemical_photosynthesis_model import fAj, fCm, fAc1, fA, fTemp
+from Photosynthetic_coefficients_references import DI_REF_INPUTS
