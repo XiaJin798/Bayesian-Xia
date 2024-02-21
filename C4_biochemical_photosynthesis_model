@@ -1,0 +1,90 @@
+import numpy as np
+import theano.tensor as tt
+import theano
+
+def tscanCM(np_Cm, Ci, VcmaxT, VpmaxT, RDT, GMT, tempC):
+    Ac1 = fAc1((Ci,np_Cm), VcmaxT, VpmaxT, RDT, tempC)
+    np_Cm = Ci - Ac1/GMT
+    return np_Cm
+
+def fCm(Ci, VcmaxT, VpmaxT, iterations, RDT, tempC):
+    GM25=1.2
+    GMT=GM25*tt.exp(40600*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    np_Cm = Ci
+
+    outInit = np_Cm
+    results, updates = theano.scan(fn=tscanCM,
+                                    outputs_info=outInit,
+                                    non_sequences=[Ci, VcmaxT, VpmaxT, RDT, GMT, tempC],
+                                    n_steps = iterations)
+    return results[-1]
+
+
+def fI2(par, alpha_PSII):
+    return par*alpha_PSII
+
+def fJt(I2, JmaxT, theta):
+    return (I2+JmaxT-np.sqrt((I2+JmaxT)**2-4*theta*JmaxT*I2))/(2*theta)
+
+def fa(Ci,GBST,GMT,RDT,x1,x10,x12,x13,x3,x8,x4,RMT,x5,x6,x7):
+    return Ci*GBST - (1/GMT)*RDT*GBST + (1/GMT)*GBST*x1 + GBST*x1*x10 + RDT*GBST*x12 + GBST*x13 + GBST*x3 - RMT*x8 + Ci*x4*x8 - (1/GMT)*RDT*x4*x8 + (1/GMT)*x1*x4*x8 + x5*x8 - RDT*x6*x8 + x1*x6*x8 - x7*x8
+
+def fd(GBST,GMT,x12,x4,x8,x6):
+    return (1/GMT)*GBST - GBST*x12 + (1/GMT)*x4*x8 + x6*x8
+
+def fb(GMT,GBST,x4,x8,x12,x6,RMT,RDT,x1,Ci,x13,x3,x5,x7,x11):
+    return ((-1/GMT)*GBST - (1/GMT)*x4*x8 + GBST*x12 - x6*x8)*(-RMT*RDT*x8 + RMT*x1*x8 + Ci*RDT*GBST + Ci*RDT*x4*x8 - Ci*GBST*x1 - Ci*x1*x4*x8 + RDT*GBST*x13 + RDT*GBST*x3 + RDT*x5*x8 - RDT*x7*x8 + GBST*x1*x11 - x1*x5*x8 + x1*x7*x8)
+
+
+def fAc1(data, VcmaxT, VpmaxT, RDT, tempC):
+    (Ci, Cm) = data
+    GM25=1.2;ALPHA=0.1;GBST=0.003;OM=210000;PHI=2.0;
+    GMT=GM25*tt.exp(40600*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    KPT=75*tt.exp(36300*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    KCT=1210*tt.exp(64200*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    KOT=292000*tt.exp(10500*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    VCMAXVOMAXT=5.513*tt.exp(21265*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    GAMMASTART=0.5/(KOT/KCT*VCMAXVOMAXT)
+    RMT=0.5*RDT
+    x1=VcmaxT;x3=KCT;x4=VpmaxT/(Cm+KPT);x5=0;x6=1;x7=0;x8=1;x10=(GAMMASTART*ALPHA)/0.047/GBST;x11=GAMMASTART*OM;x12=(KCT/KOT)*ALPHA/0.047/GBST;x13=(KCT/KOT)*OM
+    A = fa(Ci,GBST,GMT,RDT,x1,x10,x12,x13,x3,x8,x4,RMT,x5,x6,x7)
+    C = A
+    D = fd(GBST,GMT,x12,x4,x8,x6)
+    B = fb(GMT,GBST,x4,x8,x12,x6,RMT,RDT,x1,Ci,x13,x3,x5,x7,x11)
+    Ac1 = (-((A**2 - 4*B)**0.5)+C)/(2*D)
+    return Ac1
+
+def fAj(data, theta, alpha_PSII, JmaxT, RDT, tempC):
+    (par, Ci) = data
+    GM25=1.2;ALPHA=0.1;GBST=0.003;OM=210000;PHI=2.0;
+    
+    GMT=GM25*tt.exp(40600*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    KCT=1210*tt.exp(64200*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    KOT=292000*tt.exp(10500*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    VCMAXVOMAXT=5.513*tt.exp(21265*(tempC+273-298.15)/(298.15*8.314*(tempC+273)))
+    GAMMASTART=0.5/(KOT/KCT*VCMAXVOMAXT)
+    RMT=0.5*RDT
+    X=PHI/(3+PHI)
+    FCYC=0.25*PHI
+    Z=(3-FCYC)/(4*(1-FCYC))
+    I2 = fI2(par, alpha_PSII)
+    Jt = fJt(I2, JmaxT, theta)
+    x1=(Z*(1-X)*Jt/3);x3=0;x4=0;x5=(Z*X*Jt/PHI);x6=1;x7=0;x8=1;x10=(GAMMASTART*ALPHA)/0.047/GBST;x11=GAMMASTART*OM;x12=7.0/3.0*GAMMASTART*ALPHA/0.047/GBST;x13=7.0/3.0*GAMMASTART*OM
+    A = fa(Ci,GBST,GMT,RDT,x1,x10,x12,x13,x3,x8,x4,RMT,x5,x6,x7)
+    C = A
+    D = fd(GBST,GMT,x12,x4,x8,x6)
+    B = fb(GMT,GBST,x4,x8,x12,x6,RMT,RDT,x1,Ci,x13,x3,x5,x7,x11)
+    Aj = (-((A**2 - 4*B)**0.5)+C)/(2*D)
+    return Aj
+
+def fA(Aj,Ac1):
+    A = tt.minimum(Ac1, Aj)
+    return A
+
+def fTemp(P25,Topt,beta,tempC):
+    Tmin = 0.0
+    Tmax = 50.0
+    alpha = tt.log(2.0)/(tt.log((Tmax-Tmin)/(Topt-Tmin)))
+    cnorm = ((2*(25-Tmin)**alpha*(Topt-Tmin)**alpha-(25-Tmin)**(2*alpha))/((Topt-Tmin)**(2*alpha)))**beta
+    response = P25*((2*(tempC-Tmin)**alpha*(Topt-Tmin)**alpha-(tempC-Tmin)**(2*alpha))/((Topt-Tmin)**(2*alpha)))**beta/cnorm
+    return response
